@@ -1,0 +1,54 @@
+# Virtual Environment
+.venv/
+venv/
+env/
+ENV/
+.env.virtualenv
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node.js / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment & Credentials
+.env
+.env.local
+*.pem
+*.key
+
+# Local Storage & Vector Database
+data/chroma/
+data/vector_store/
+data/documents/*
+!data/documents/.gitkeep
+data/documents/temp_chats/*
+data/documents/knowledge_base/*
+data/documents/generated/*
+knowledge_base/*
+temp_chats/*
+
+# Temporary & Test Folders
+New folder/
+sandbox-test/
+*.log
+*.tmp
+
+# Operating System & IDE
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
