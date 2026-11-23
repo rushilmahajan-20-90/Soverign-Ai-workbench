@@ -22,19 +22,28 @@ class VectorStoreManager:
         os.makedirs(self.persist_directory, exist_ok=True)
         self.client = chromadb.PersistentClient(path=self.persist_directory)
 
-        # Permanent Company Knowledge Base
-        self.kb_collection = self.client.get_or_create_collection(name="company_knowledge_base")
-        # Temporary Chat Documents
-        self.temp_collection = self.client.get_or_create_collection(name="chat_temporary_documents")
-        # Legacy Collection
-        self.legacy_collection = self.client.get_or_create_collection(name="pdf_documents")
-
-        # Backward compatibility alias
-        self._collection = self.kb_collection
-        self.all_collections = [self.kb_collection, self.temp_collection, self.legacy_collection]
-
         # Auto-migrate legacy pdf_documents chunks to kb_collection if needed
         self._auto_migrate_legacy()
+
+    @property
+    def kb_collection(self):
+        return self.client.get_or_create_collection(name="company_knowledge_base")
+
+    @property
+    def temp_collection(self):
+        return self.client.get_or_create_collection(name="chat_temporary_documents")
+
+    @property
+    def legacy_collection(self):
+        return self.client.get_or_create_collection(name="pdf_documents")
+
+    @property
+    def all_collections(self):
+        return [self.kb_collection, self.temp_collection, self.legacy_collection]
+
+    @property
+    def _collection(self):
+        return self.kb_collection
 
     def _auto_migrate_legacy(self):
         try:
