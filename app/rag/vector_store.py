@@ -94,10 +94,16 @@ class VectorStoreManager:
 
         ids, metadatas, contents, embedding_list = [], [], [], []
         for index, (doc, embedding) in enumerate(zip(documents, embeddings)):
-            metadata = dict(doc.metadata or {})
+            if hasattr(doc, "metadata"):
+                metadata = dict(doc.metadata or {})
+                content = doc.page_content or ""
+            else:
+                metadata = {}
+                content = str(doc)
+
             metadata["document_id"] = str(document_id)
             metadata["chunk_index"] = index
-            metadata["content_length"] = len(doc.page_content or "")
+            metadata["content_length"] = len(content)
             metadata["scope"] = scope_name
             metadata["is_temporary"] = is_temporary
             if conversation_id:
@@ -112,7 +118,7 @@ class VectorStoreManager:
             }
             ids.append(f"chunk_{uuid.uuid4()}")
             metadatas.append(metadata)
-            contents.append(doc.page_content or "")
+            contents.append(content)
             embedding_list.append(embedding.tolist())
 
         target_collection.add(
@@ -169,34 +175,34 @@ class VectorStoreManager:
             except Exception as e:
                 logger.debug("Error querying legacy collection: %s", e)
 
-        # 2. Query Temporary Chat / Project documents collection
-        try:
-            temp_kwargs = {
-                "query_embeddings": [query_embedding.tolist()],
-                "n_results": top_k,
-            }
-            if conversation_id and document_id:
-                temp_kwargs["where"] = {
-                    "$and": [
-                        {"conversation_id": str(conversation_id)},
-                        {"document_id": str(document_id)},
-                    ]
+        # 2. Query Temporary Chat / Project documents collection (STRICT CONVERSATION ISOLATION)
+        # Temporary documents belong exclusively to the conversation where they were uploaded.
+        # If conversation_id is not provided, or when switching chats, other chats' docs are NEVER queried.
+        if conversation_id:
+            try:
+                temp_kwargs = {
+                    "query_embeddings": [query_embedding.tolist()],
+                    "n_results": top_k,
+                    "where": {"conversation_id": str(conversation_id)},
                 }
-            elif conversation_id:
-                temp_kwargs["where"] = {"conversation_id": str(conversation_id)}
-            elif document_id:
-                temp_kwargs["where"] = {"document_id": str(document_id)}
+                if document_id:
+                    temp_kwargs["where"] = {
+                        "$and": [
+                            {"conversation_id": str(conversation_id)},
+                            {"document_id": str(document_id)},
+                        ]
+                    }
 
-            temp_res = self.temp_collection.query(**temp_kwargs)
-            if temp_res.get("documents") and temp_res["documents"][0]:
-                for doc, meta, dist in zip(temp_res["documents"][0], temp_res["metadatas"][0], temp_res["distances"][0]):
-                    meta_copy = dict(meta or {})
-                    meta_copy["scope"] = "chat_temporary"
-                    combined_docs.append(doc)
-                    combined_metas.append(meta_copy)
-                    combined_dists.append(dist)
-        except Exception as e:
-            logger.debug("Error querying temp collection: %s", e)
+                temp_res = self.temp_collection.query(**temp_kwargs)
+                if temp_res.get("documents") and temp_res["documents"][0]:
+                    for doc, meta, dist in zip(temp_res["documents"][0], temp_res["metadatas"][0], temp_res["distances"][0]):
+                        meta_copy = dict(meta or {})
+                        meta_copy["scope"] = "chat_temporary"
+                        combined_docs.append(doc)
+                        combined_metas.append(meta_copy)
+                        combined_dists.append(dist)
+            except Exception as e:
+                logger.debug("Error querying temp collection for conv %s: %s", conversation_id, e)
 
         # Sort combined results by distance (ascending)
         if combined_dists:
@@ -236,10 +242,15 @@ class VectorStoreManager:
             "metadatas": (kb_res.get("metadatas") or []) + (temp_res.get("metadatas") or []) + (legacy_res.get("metadatas") or []),
         }
 
-    def list_documents(self):
-        """Return unique indexed files from Permanent KB, Temporary Chat, and physical files."""
+    def list_documents(self, conversation_id=None):
+        """
+        Return unique indexed files from:
+        1. Permanent Company Knowledge Base (always available to all chats)
+        2. Temporary Chat Documents (STRICTLY for the requested conversation_id only)
+        """
         grouped = {}
-        for coll in self.all_collections:
+        # 1. Permanent Knowledge Base collections (always available)
+        for coll in [self.kb_collection, self.legacy_collection]:
             try:
                 results = coll.get(include=["metadatas"])
                 for metadata in results.get("metadatas") or []:
@@ -249,14 +260,13 @@ class VectorStoreManager:
                     if not document_id:
                         continue
                     source = metadata.get("source", metadata.get("source_file", "unknown"))
-                    scope = metadata.get("scope", "knowledge_base")
                     entry = grouped.setdefault(str(document_id), {
                         "document_id": str(document_id),
                         "source": str(source),
                         "filename": Path(str(source)).name,
-                        "scope": scope,
-                        "is_temporary": metadata.get("is_temporary", False),
-                        "conversation_id": metadata.get("conversation_id"),
+                        "scope": "knowledge_base",
+                        "is_temporary": False,
+                        "conversation_id": None,
                         "pages": set(),
                         "chunks": 0,
                     })
@@ -265,7 +275,39 @@ class VectorStoreManager:
                     if page is not None:
                         entry["pages"].add(str(page))
             except Exception as e:
-                logger.debug("Error listing documents from collection: %s", e)
+                logger.debug("Error listing KB documents: %s", e)
+
+        # 2. Temporary Chat collection: ONLY if matching conversation_id!
+        # If conversation_id is None or switching to another chat, temp docs are strictly isolated!
+        if conversation_id:
+            try:
+                results = self.temp_collection.get(
+                    where={"conversation_id": str(conversation_id)},
+                    include=["metadatas"]
+                )
+                for metadata in results.get("metadatas") or []:
+                    if not metadata:
+                        continue
+                    document_id = metadata.get("document_id")
+                    if not document_id:
+                        continue
+                    source = metadata.get("source", metadata.get("source_file", "unknown"))
+                    entry = grouped.setdefault(str(document_id), {
+                        "document_id": str(document_id),
+                        "source": str(source),
+                        "filename": Path(str(source)).name,
+                        "scope": "chat_temporary",
+                        "is_temporary": True,
+                        "conversation_id": str(conversation_id),
+                        "pages": set(),
+                        "chunks": 0,
+                    })
+                    entry["chunks"] += 1
+                    page = metadata.get("page")
+                    if page is not None:
+                        entry["pages"].add(str(page))
+            except Exception as e:
+                logger.debug("Error listing temp documents for conv %s: %s", conversation_id, e)
 
         # Include physical files from data/documents if not already discovered
         try:
@@ -297,11 +339,11 @@ class VectorStoreManager:
             documents.append(entry)
         return sorted(documents, key=lambda item: item["filename"].lower())
 
-    def get_document_chunks(self, document_id=None, source=None):
+    def get_document_chunks(self, document_id=None, source=None, conversation_id=None):
         """
-        Fetch every chunk for one file from KB, Temp, or Legacy collection.
-        Supports UUID, filename, path, or case-insensitive matching.
-        Falls back to host file text extraction if vector chunks are not yet indexed.
+        Fetch every chunk for one file:
+        - If file is in Permanent KB: always accessible to every conversation.
+        - If file is in Temporary Chat: ONLY accessible if conversation_id matches!
         """
         if not document_id and not source:
             raise ValueError("Provide document_id or source.")
@@ -310,7 +352,18 @@ class VectorStoreManager:
 
         # Phase 1: Direct exact match by document_id or source
         for coll in self.all_collections:
-            for query_where in [{"document_id": identifier}, {"source": identifier}]:
+            # If checking temporary collection, skip if no conversation_id provided
+            if coll == self.temp_collection and not conversation_id:
+                continue
+
+            query_where_list = [{"document_id": identifier}, {"source": identifier}]
+            if coll == self.temp_collection and conversation_id:
+                query_where_list = [
+                    {"$and": [{"document_id": identifier}, {"conversation_id": str(conversation_id)}]},
+                    {"$and": [{"source": identifier}, {"conversation_id": str(conversation_id)}]},
+                ]
+
+            for query_where in query_where_list:
                 try:
                     results = coll.get(where=query_where, include=["documents", "metadatas"])
                     ids = results.get("ids") or []
@@ -319,12 +372,14 @@ class VectorStoreManager:
                 except Exception:
                     pass
 
-        # Phase 2: Flexible metadata scan across all collections
+        # Phase 2: Flexible metadata scan across collections
         # Matches filename, stem, or path variations (e.g. Windows \ vs /)
         target_name = Path(identifier).name.lower()
         target_stem = Path(identifier).stem.lower()
 
         for coll in self.all_collections:
+            if coll == self.temp_collection and not conversation_id:
+                continue
             try:
                 results = coll.get(include=["documents", "metadatas"])
                 ids = results.get("ids") or []
@@ -334,6 +389,10 @@ class VectorStoreManager:
                 matched_ids, matched_docs, matched_metas = [], [], []
                 for cid, doc, meta in zip(ids, documents, metadatas):
                     meta = meta or {}
+                    # If checking temporary collection, strictly isolate to active conversation_id
+                    if coll == self.temp_collection and str(meta.get("conversation_id", "")) != str(conversation_id):
+                        continue
+
                     meta_doc_id = str(meta.get("document_id", "")).strip()
                     meta_source = str(meta.get("source", meta.get("source_file", ""))).strip()
                     meta_filename = Path(meta_source).name.lower()
@@ -356,8 +415,8 @@ class VectorStoreManager:
             except Exception as e:
                 logger.debug("Flexible metadata scan: %s", e)
 
-        # Phase 3: Physical disk fallback
-        # If the file exists in data/documents, extract text directly so reading NEVER fails
+        # Phase 3: Physical disk fallback (Knowledge Base)
+        # If the file exists in data/documents/knowledge_base, extract text directly
         disk_chunk = self._extract_physical_disk_fallback(identifier)
         if disk_chunk:
             return [disk_chunk]

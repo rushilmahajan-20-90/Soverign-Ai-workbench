@@ -107,10 +107,11 @@ def json_text(value) -> str:
     title="List Indexed Documents",
     annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False),
 )
-def list_documents() -> str:
-    """List PDFs and images currently indexed by the local OCR pipeline."""
+def list_documents(conversation_id: str = "") -> str:
+    """List PDFs and images currently indexed. Permanent KB documents are always listed; temporary chat documents are only listed for the active conversation."""
+    cid = conversation_id.strip() if conversation_id and conversation_id.strip() else None
     with contextlib.redirect_stdout(sys.stderr):
-        documents = get_vector_store().list_documents()
+        documents = get_vector_store().list_documents(conversation_id=cid)
     return json_text({"documents": documents, "count": len(documents)})
 
 
@@ -118,18 +119,19 @@ def list_documents() -> str:
     title="Read Complete Document",
     annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False),
 )
-def read_document(document_id: str) -> str:
-    """Return all OCR-extracted chunks for one indexed PDF or image in page order."""
+def read_document(document_id: str, conversation_id: str = "") -> str:
+    """Return all OCR-extracted chunks for one indexed PDF or image in page order. Temporary chat documents are restricted to the authorized conversation."""
     if not isinstance(document_id, str) or not document_id.strip():
         return json_text({"error": "document_id is required."})
     clean_id = document_id.strip()
+    cid = conversation_id.strip() if conversation_id and conversation_id.strip() else None
     with contextlib.redirect_stdout(sys.stderr):
-        chunks = get_vector_store().get_document_chunks(document_id=clean_id)
+        chunks = get_vector_store().get_document_chunks(document_id=clean_id, conversation_id=cid)
         if not chunks:
-            chunks = get_vector_store().get_document_chunks(source=clean_id)
+            chunks = get_vector_store().get_document_chunks(source=clean_id, conversation_id=cid)
     if not chunks:
         return json_text({
-            "error": "No indexed text was found for that document ID.",
+            "error": "No indexed text was found for that document ID in the current authorized scope.",
             "document_id": clean_id,
         })
 
@@ -162,13 +164,14 @@ def read_document(document_id: str) -> str:
     title="Search Documents",
     annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False),
 )
-def search_documents(query: str, top_k: int = 5) -> str:
-    """Search indexed PDFs and images for relevant OCR-extracted text."""
+def search_documents(query: str, top_k: int = 5, conversation_id: str = "") -> str:
+    """Search indexed PDFs and images for relevant OCR-extracted text. Permanent Company Knowledge Base is always searched; temporary chat documents are strictly searched only for the active conversation."""
     if not isinstance(query, str) or not query.strip():
         return "Error: query cannot be empty."
     top_k = max(1, min(int(top_k), 10))
+    cid = conversation_id.strip() if conversation_id and conversation_id.strip() else None
     with contextlib.redirect_stdout(sys.stderr):
-        results = get_retriever().retrieve(query=query.strip(), top_k=top_k)
+        results = get_retriever().retrieve(query=query.strip(), top_k=top_k, conversation_id=cid)
     if not results:
         return "No relevant information was found in the indexed documents."
     output = []

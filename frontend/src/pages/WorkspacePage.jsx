@@ -583,7 +583,7 @@ export default function WorkspacePage() {
     const defaultCat = PROJECT_CATEGORIES[0];
     setModalCategory(defaultCat.id);
     setModalDescription(defaultCat.defaultScope);
-    setModalTasks([...defaultCat.defaultTasks]);
+    setModalTasks([]);
     setModalNewTaskInput('');
     setShowCreateModal(true);
   };
@@ -609,9 +609,6 @@ export default function WorkspacePage() {
       const isAnyDefault = PROJECT_CATEGORIES.some((c) => c.defaultScope === modalDescription);
       if (!modalDescription.trim() || isAnyDefault) {
         setModalDescription(cat.defaultScope);
-      }
-      if (modalTasks.length === 0) {
-        setModalTasks([...cat.defaultTasks]);
       }
     }
   };
@@ -1922,10 +1919,15 @@ export default function WorkspacePage() {
           <div className="stat-label">Completed Projects</div>
         </div>
         <div className="stat-card">
-          <div className="stat-value">
-            {completedTasks}/{totalTasks}
+          <div className="stat-value" style={{ color: totalTasks > 0 && completedTasks === totalTasks ? 'var(--success)' : '#ffffff' }}>
+            {totalTasks > 0 ? `${completedTasks}/${totalTasks}` : '—'}
           </div>
-          <div className="stat-label">Tasks Finished</div>
+          <div className="stat-label">Project Milestones</div>
+          {totalTasks > 0 && (
+            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
+              {completedTasks} of {totalTasks} finished
+            </div>
+          )}
         </div>
       </div>
 

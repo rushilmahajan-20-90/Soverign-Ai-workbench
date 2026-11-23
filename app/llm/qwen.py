@@ -217,8 +217,9 @@ def _match_document(documents: list[dict], message: str):
     return None, "\n".join(lines)
 
 
-async def _read_target_document(message: str):
-    listing = await _call_json_tool("list_documents", {})
+async def _read_target_document(message: str, conversation_id: Optional[int] = None):
+    cid_str = str(conversation_id) if conversation_id else ""
+    listing = await _call_json_tool("list_documents", {"conversation_id": cid_str})
     documents = listing.get("documents", [])
     if not isinstance(documents, list):
         return None, "The document list returned an invalid format."
@@ -230,19 +231,19 @@ async def _read_target_document(message: str):
     filename = str(target.get("filename", "")).strip()
 
     # Try reading by document_id first
-    document = await _call_json_tool("read_document", {"document_id": document_id or filename})
+    document = await _call_json_tool("read_document", {"document_id": document_id or filename, "conversation_id": cid_str})
     if document.get("error") and filename and filename != document_id:
         # Retry with filename
-        document = await _call_json_tool("read_document", {"document_id": filename})
+        document = await _call_json_tool("read_document", {"document_id": filename, "conversation_id": cid_str})
 
     if document.get("error"):
         return None, str(document["error"])
     return document, ""
 
 
-async def _handle_full_read(message: str) -> str:
+async def _handle_full_read(message: str, conversation_id: Optional[int] = None) -> str:
     try:
-        document, error = await _read_target_document(message)
+        document, error = await _read_target_document(message, conversation_id=conversation_id)
     except Exception:
         logger.exception("Failed to read full indexed document.")
         return "I couldn't read the indexed file. Check the backend terminal for the error."
@@ -269,9 +270,9 @@ async def _handle_full_read(message: str) -> str:
     return header + "\n--- BEGIN EXTRACTED TEXT ---\n" + text + "\n--- END EXTRACTED TEXT ---"
 
 
-async def _handle_document_summary(message: str) -> str:
+async def _handle_document_summary(message: str, conversation_id: Optional[int] = None) -> str:
     try:
-        document, error = await _read_target_document(message)
+        document, error = await _read_target_document(message, conversation_id=conversation_id)
     except Exception:
         logger.exception("Failed to read indexed document for summary.")
         return "I couldn't retrieve the indexed file. Check the backend terminal for the error."
@@ -313,6 +314,7 @@ async def ask_qwen_with_tools(
     message: str,
     history: Optional[list[dict[str, Any]]] = None,
     temperature: float = 0.7,
+    conversation_id: Optional[int] = None,
 ) -> str:
     message = message.strip()
     if not message:
@@ -323,13 +325,13 @@ async def ask_qwen_with_tools(
     # Return the OCR text directly for full-read requests instead of asking the
     # small language model to reproduce it from memory.
     if is_full_read_request(message):
-        return await _handle_full_read(message)
+        return await _handle_full_read(message, conversation_id=conversation_id)
 
     # Summaries should use the document's complete indexed OCR text.
     if is_summary_request(message) and any(
         marker in message.lower() for marker in DOCUMENT_REFERENCE_TRIGGERS
     ):
-        return await _handle_document_summary(message)
+        return await _handle_document_summary(message, conversation_id=conversation_id)
 
     try:
         mcp_tools = await mcp_client.list_tools()
@@ -358,11 +360,12 @@ async def ask_qwen_with_tools(
         {"role": "user", "content": message},
     ]
 
+    cid_str = str(conversation_id) if conversation_id else ""
     if requires_document_search(message):
         try:
             context = _tool_text(await mcp_client.call_tool(
                 "search_documents",
-                {"query": message, "top_k": DOCUMENT_SEARCH_TOP_K},
+                {"query": message, "top_k": DOCUMENT_SEARCH_TOP_K, "conversation_id": cid_str},
             ))
         except Exception:
             logger.exception("Required document search failed.")
@@ -409,6 +412,9 @@ async def ask_qwen_with_tools(
             else:
                 try:
                     arguments = parse_tool_arguments(function.arguments)
+                    if conversation_id and name in {"search_documents", "list_documents", "read_document"}:
+                        if not arguments.get("conversation_id"):
+                            arguments["conversation_id"] = cid_str
                     output = _tool_text(await mcp_client.call_tool(name, arguments))
                 except Exception:
                     logger.exception("MCP tool '%s' failed.", name)

@@ -2114,8 +2114,8 @@ async def chat(
         else:
             temp = max(0.0, min(2.0, float(temp)))
 
-        # Pass persisted history and temperature to Qwen
-        answer = await ask_qwen_with_tools(message, history=history, temperature=temp)
+        # Pass persisted history, temperature, and conversation_id to Qwen for strict isolation
+        answer = await ask_qwen_with_tools(message, history=history, temperature=temp, conversation_id=conversation_id)
         if not isinstance(answer, str):
             answer = str(answer)
 
