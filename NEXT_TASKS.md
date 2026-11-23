@@ -40,6 +40,13 @@ Open **`http://localhost:3000`** in any browser.
 
 ## Completed Verification Checklist
 
+- [x] **Working Temperature Settings & LLM Inference Control**:
+  - Database schema updated: `workspace_settings.default_temperature NUMERIC(3, 2)` persisted in PostgreSQL.
+  - LLM integration: `app/llm/qwen.py` and `app/llm/qwen2.py` pass `options={"temperature": temp}` to Ollama client.
+  - Endpoints: `GET /settings/model`, `PATCH /settings/model`, and `POST /chat` with dynamic temperature override.
+  - Settings UI: Dedicated slider, presets (Precise 0.20, Balanced 0.70, Creative 1.00), dynamic behavior badges.
+  - Chat UI: Quick-tuning temperature widget directly in chat input bar with session persistence.
+  - Verified live inference: `POST /chat` verified responding with requested temperature.
 - [x] **Document Upload Restricted Exclusively to Administrators**:
   - Removed `Documents` tab from Member navigation in `Sidebar.jsx`.
   - Removed document attachment paperclip and drag-and-drop from Member chat in `ChatPage.jsx`.

@@ -282,7 +282,7 @@ def get_workspace_settings() -> dict:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT id, org_name, workspace_domain, allow_member_upload, max_upload_size_mb, enforce_data_isolation, updated_at
+                SELECT id, org_name, workspace_domain, allow_member_upload, max_upload_size_mb, enforce_data_isolation, default_temperature, updated_at
                 FROM workspace_settings
                 WHERE id = 1
                 """
@@ -291,9 +291,9 @@ def get_workspace_settings() -> dict:
             if not row:
                 cur.execute(
                     """
-                    INSERT INTO workspace_settings (id, org_name, workspace_domain)
-                    VALUES (1, 'Vertex Enterprise', 'vertex.local')
-                    RETURNING id, org_name, workspace_domain, allow_member_upload, max_upload_size_mb, enforce_data_isolation, updated_at
+                    INSERT INTO workspace_settings (id, org_name, workspace_domain, default_temperature)
+                    VALUES (1, 'Vertex Enterprise', 'vertex.local', 0.70)
+                    RETURNING id, org_name, workspace_domain, allow_member_upload, max_upload_size_mb, enforce_data_isolation, default_temperature, updated_at
                     """
                 )
                 row = cur.fetchone()
@@ -305,7 +305,8 @@ def get_workspace_settings() -> dict:
         "allow_member_upload": row[3],
         "max_upload_size_mb": row[4],
         "enforce_data_isolation": row[5],
-        "updated_at": row[6].isoformat() if row[6] else None,
+        "default_temperature": float(row[6]) if row[6] is not None else 0.70,
+        "updated_at": row[7].isoformat() if row[7] else None,
     }
 
 
@@ -315,6 +316,7 @@ def update_workspace_settings(
     allow_member_upload: bool = None,
     max_upload_size_mb: int = None,
     enforce_data_isolation: bool = None,
+    default_temperature: float = None,
 ) -> dict:
     sets = ["updated_at = NOW()"]
     params = []
@@ -338,6 +340,10 @@ def update_workspace_settings(
     if enforce_data_isolation is not None:
         sets.append("enforce_data_isolation = %s")
         params.append(bool(enforce_data_isolation))
+
+    if default_temperature is not None:
+        sets.append("default_temperature = %s")
+        params.append(round(max(0.0, min(2.0, float(default_temperature))), 2))
 
     with get_pool().connection() as conn:
         with conn.cursor() as cur:

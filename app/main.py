@@ -195,6 +195,7 @@ class ChatRequest(BaseModel):
     conversation_id: Optional[int] = None
     user_id: Optional[int] = None
     project_id: Optional[str] = None
+    temperature: Optional[float] = None
 
 
 class ConversationCreateRequest(BaseModel):
@@ -245,6 +246,11 @@ class WorkspaceSettingsUpdateRequest(BaseModel):
     allow_member_upload: Optional[bool] = None
     max_upload_size_mb: Optional[int] = None
     enforce_data_isolation: Optional[bool] = None
+    default_temperature: Optional[float] = None
+
+
+class ModelSettingsUpdateRequest(BaseModel):
+    default_temperature: float
 
 
 class ConversationRenameRequest(BaseModel):
@@ -2100,8 +2106,19 @@ async def chat(
 
         history = saved_conversation.get("messages", [])
 
-        # Pass persisted history to Qwen
-        answer = await ask_qwen_with_tools(message, history=history)
+        # Resolve temperature: request parameter > workspace settings > default 0.70
+        temp = request.temperature
+        if temp is None:
+            try:
+                ws = get_workspace_settings()
+                temp = float(ws.get("default_temperature", 0.70))
+            except Exception:
+                temp = 0.70
+        else:
+            temp = max(0.0, min(2.0, float(temp)))
+
+        # Pass persisted history and temperature to Qwen
+        answer = await ask_qwen_with_tools(message, history=history, temperature=temp)
         if not isinstance(answer, str):
             answer = str(answer)
 
@@ -2118,7 +2135,7 @@ async def chat(
             resource_type="conversation",
             resource_id=str(conversation_id),
             resource_name=conversation.get("title", ""),
-            details={"message_len": len(message), "created_new": created_new},
+            details={"message_len": len(message), "created_new": created_new, "temperature": temp},
             ip_address=get_client_ip(raw_req),
         )
 
@@ -2126,6 +2143,7 @@ async def chat(
             "conversation_id": conversation_id,
             "created_new": created_new,
             "answer": answer,
+            "temperature": temp,
         }
 
     except HTTPException:
@@ -2512,6 +2530,7 @@ def admin_patch_settings(
         allow_member_upload=request.allow_member_upload,
         max_upload_size_mb=request.max_upload_size_mb,
         enforce_data_isolation=request.enforce_data_isolation,
+        default_temperature=request.default_temperature,
     )
 
     log_audit_event(
@@ -2524,10 +2543,63 @@ def admin_patch_settings(
         details={
             "org_name": request.org_name,
             "allow_member_upload": request.allow_member_upload,
+            "default_temperature": request.default_temperature,
         },
         ip_address=get_client_ip(raw_req),
     )
     return updated
+
+
+# =========================================================
+# MODEL & GENERATION PARAMETER ENDPOINTS
+# =========================================================
+
+@app.get("/settings/model")
+def get_model_settings(current_user: Optional[dict] = Depends(get_optional_user)):
+    """Retrieve active LLM model specifications and default inference temperature."""
+    try:
+        ws = get_workspace_settings()
+        default_temp = float(ws.get("default_temperature", 0.70))
+    except Exception:
+        default_temp = 0.70
+
+    return {
+        "model_name": "qwen3.5:4B",
+        "provider": "Ollama (Local / Offline)",
+        "default_temperature": default_temp,
+        "temperature_range": {"min": 0.0, "max": 1.5, "step": 0.05},
+        "presets": {
+            "precise": 0.20,
+            "balanced": 0.70,
+            "creative": 1.00,
+        },
+    }
+
+
+@app.patch("/settings/model")
+def patch_model_settings(
+    request: ModelSettingsUpdateRequest,
+    raw_req: Request,
+    current_user: dict = Depends(get_current_user),
+):
+    """Update system/workspace generation temperature."""
+    temp = max(0.0, min(2.0, float(request.default_temperature)))
+    updated = update_workspace_settings(default_temperature=temp)
+    log_audit_event(
+        user_id=current_user["id"],
+        username=current_user["username"],
+        display_name=current_user["display_name"],
+        role=current_user["role"],
+        action="update_model_settings",
+        resource_type="settings",
+        details={"temperature": temp},
+        ip_address=get_client_ip(raw_req),
+    )
+    return {
+        "status": "success",
+        "model_name": "qwen3.5:4B",
+        "default_temperature": updated.get("default_temperature", temp),
+    }
 
 
 # =========================================================

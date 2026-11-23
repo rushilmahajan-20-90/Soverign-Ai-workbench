@@ -19,6 +19,8 @@ import {
   Download,
   Trash2,
   FileDown,
+  Sliders,
+  Thermometer,
 } from 'lucide-react';
 
 function formatSize(bytes) {
@@ -197,9 +199,20 @@ export default function ChatPage({
   const [attachedFile, setAttachedFile] = useState(null);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [dragOverChat, setDragOverChat] = useState(false);
+  const [temperature, setTemperature] = useState(() => {
+    const saved = localStorage.getItem('vertex_temperature');
+    return saved !== null ? parseFloat(saved) : 0.70;
+  });
+  const [showTempPopover, setShowTempPopover] = useState(false);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  const handleTempChange = (newVal) => {
+    const val = parseFloat(newVal);
+    setTemperature(val);
+    localStorage.setItem('vertex_temperature', val.toString());
+  };
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
@@ -275,7 +288,7 @@ export default function ChatPage({
     scrollToBottom();
 
     try {
-      const result = await api.sendMessage(msg, activeConversationId, currentUser?.id);
+      const result = await api.sendMessage(msg, activeConversationId, null, temperature);
 
       // If new conversation was created, update the active ID
       if (result.created_new || !activeConversationId) {
@@ -315,7 +328,7 @@ export default function ChatPage({
     setSending(true);
     scrollToBottom();
     try {
-      const result = await api.sendMessage(userMsg.content, activeConversationId, currentUser?.id);
+      const result = await api.sendMessage(userMsg.content, activeConversationId, null, temperature);
       const assistantMsg = {
         id: `resp-${Date.now()}`,
         role: 'assistant',
@@ -570,6 +583,111 @@ export default function ChatPage({
                     <Paperclip size={20} />
                   </button>
                 )}
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    className="chat-input-btn"
+                    onClick={() => setShowTempPopover(!showTempPopover)}
+                    title={`Temperature: ${temperature.toFixed(2)} (${temperature < 0.35 ? 'Precise' : temperature <= 0.8 ? 'Balanced' : 'Creative'})`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: '0 8px',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: temperature < 0.35 ? '#38bdf8' : temperature <= 0.8 ? '#818cf8' : '#f59e0b',
+                      background: 'rgba(255, 255, 255, 0.04)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: 6,
+                      height: 32,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Sliders size={13} />
+                    <span>{temperature.toFixed(2)}</span>
+                  </button>
+                  {showTempPopover && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        bottom: '100%',
+                        left: 0,
+                        marginBottom: 8,
+                        width: 230,
+                        background: '#0d0d12',
+                        border: '1px solid var(--border-primary)',
+                        borderRadius: 8,
+                        padding: 12,
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                        zIndex: 100,
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>Temperature</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', fontFamily: 'monospace' }}>
+                          {temperature.toFixed(2)}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.0"
+                        max="1.5"
+                        step="0.05"
+                        value={temperature}
+                        onChange={(e) => handleTempChange(e.target.value)}
+                        style={{ width: '100%', cursor: 'pointer', accentColor: 'var(--accent)', height: 4, marginBottom: 8 }}
+                      />
+                      <div style={{ display: 'flex', gap: 4, justifyContent: 'space-between' }}>
+                        <button
+                          type="button"
+                          style={{
+                            fontSize: 10,
+                            padding: '3px 6px',
+                            background: temperature === 0.2 ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                            color: temperature === 0.2 ? '#38bdf8' : '#cbd5e1',
+                            borderRadius: 4,
+                            cursor: 'pointer',
+                          }}
+                          onClick={() => handleTempChange(0.20)}
+                        >
+                          🎯 0.20
+                        </button>
+                        <button
+                          type="button"
+                          style={{
+                            fontSize: 10,
+                            padding: '3px 6px',
+                            background: temperature === 0.7 ? 'rgba(129, 140, 248, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                            color: temperature === 0.7 ? '#818cf8' : '#cbd5e1',
+                            borderRadius: 4,
+                            cursor: 'pointer',
+                          }}
+                          onClick={() => handleTempChange(0.70)}
+                        >
+                          ⚖️ 0.70
+                        </button>
+                        <button
+                          type="button"
+                          style={{
+                            fontSize: 10,
+                            padding: '3px 6px',
+                            background: temperature === 1.0 ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                            color: temperature === 1.0 ? '#f59e0b' : '#cbd5e1',
+                            borderRadius: 4,
+                            cursor: 'pointer',
+                          }}
+                          onClick={() => handleTempChange(1.00)}
+                        >
+                          💡 1.00
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <textarea
                   ref={textareaRef}
                   className="chat-textarea"
@@ -791,6 +909,111 @@ export default function ChatPage({
                   <Paperclip size={20} />
                 </button>
               )}
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="chat-input-btn"
+                  onClick={() => setShowTempPopover(!showTempPopover)}
+                  title={`Temperature: ${temperature.toFixed(2)} (${temperature < 0.35 ? 'Precise' : temperature <= 0.8 ? 'Balanced' : 'Creative'})`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: '0 8px',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: temperature < 0.35 ? '#38bdf8' : temperature <= 0.8 ? '#818cf8' : '#f59e0b',
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: 6,
+                    height: 32,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Sliders size={13} />
+                  <span>{temperature.toFixed(2)}</span>
+                </button>
+                {showTempPopover && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      bottom: '100%',
+                      left: 0,
+                      marginBottom: 8,
+                      width: 230,
+                      background: '#0d0d12',
+                      border: '1px solid var(--border-primary)',
+                      borderRadius: 8,
+                      padding: 12,
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                      zIndex: 100,
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>Temperature</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', fontFamily: 'monospace' }}>
+                        {temperature.toFixed(2)}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.0"
+                      max="1.5"
+                      step="0.05"
+                      value={temperature}
+                      onChange={(e) => handleTempChange(e.target.value)}
+                      style={{ width: '100%', cursor: 'pointer', accentColor: 'var(--accent)', height: 4, marginBottom: 8 }}
+                    />
+                    <div style={{ display: 'flex', gap: 4, justifyContent: 'space-between' }}>
+                      <button
+                        type="button"
+                        style={{
+                          fontSize: 10,
+                          padding: '3px 6px',
+                          background: temperature === 0.2 ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          color: temperature === 0.2 ? '#38bdf8' : '#cbd5e1',
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                        }}
+                        onClick={() => handleTempChange(0.20)}
+                      >
+                        🎯 0.20
+                      </button>
+                      <button
+                        type="button"
+                        style={{
+                          fontSize: 10,
+                          padding: '3px 6px',
+                          background: temperature === 0.7 ? 'rgba(129, 140, 248, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          color: temperature === 0.7 ? '#818cf8' : '#cbd5e1',
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                        }}
+                        onClick={() => handleTempChange(0.70)}
+                      >
+                        ⚖️ 0.70
+                      </button>
+                      <button
+                        type="button"
+                        style={{
+                          fontSize: 10,
+                          padding: '3px 6px',
+                          background: temperature === 1.0 ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          color: temperature === 1.0 ? '#f59e0b' : '#cbd5e1',
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                        }}
+                        onClick={() => handleTempChange(1.00)}
+                      >
+                        💡 1.00
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
               <textarea
                 ref={textareaRef}
                 className="chat-textarea"

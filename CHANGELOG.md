@@ -1,5 +1,39 @@
 # CHANGELOG.md — Sovereign AI Workbench
 
+## 2026-11-23 — AI Generation Temperature Settings & Full Local Inference Control
+
+### 1. Database Schema & Persistence
+- Added `default_temperature NUMERIC(3, 2) NOT NULL DEFAULT 0.70` column to `workspace_settings` table in `app/db/database.py`.
+- Updated `get_workspace_settings()` and `update_workspace_settings()` in `app/db/users.py` to fetch, persist, and audit default temperature across server restarts.
+
+### 2. LLM Engine Options Integration
+- Updated `ask_qwen` and `ask_qwen_with_tools` in `app/llm/qwen.py` and `app/llm/qwen2.py` to accept `temperature: float = 0.7` and pass `options={"temperature": temp}` directly to Ollama's local `client.chat()`.
+- Both direct generation and agentic tool-use loops now strictly respect the active temperature setting.
+
+### 3. Backend Endpoints & Models
+- Added `temperature: Optional[float] = None` to `ChatRequest` in `app/main.py`.
+- Added `GET /settings/model`: returns active model (`qwen3.5:4B`), provider (`Ollama Local / Offline`), current `default_temperature`, range (`0.0 - 1.5`, step `0.05`), and presets (`precise: 0.20`, `balanced: 0.70`, `creative: 1.00`).
+- Added `PATCH /settings/model`: allows authenticated users/administrators to adjust and persist global default inference temperature.
+- `POST /chat` automatically applies request-specific temperature or falls back to workspace default, logs temperature to audit trails, and returns `temperature` in the response object.
+
+### 4. Frontend Settings & Real-Time Chat Tuning UI
+- **Settings Page (`SettingsPage.jsx`)**:
+  - Added dedicated **AI Model & Inference Settings** card with active model information (`Qwen 3.5:4B Ollama Local`).
+  - Interactive temperature slider from `0.0` to `1.5` with step `0.05`.
+  - Dynamic behavior badge:
+    - `< 0.35`: 🎯 *Precise & Deterministic* (Code, document Q&A, structured data extraction, strict factual grounding).
+    - `0.35 - 0.80`: ⚖️ *Balanced & Coherent* (Recommended default for conversation and reasoning).
+    - `> 0.80`: 💡 *Creative & Exploratory* (Brainstorming, drafting, ideation).
+  - Quick preset buttons: `Precise (0.20)`, `Balanced (0.70)`, `Creative (1.00)`.
+  - Instant save to `localStorage` and backend persistence via `api.updateModelSettings()`.
+- **Chat Interface (`ChatPage.jsx`)**:
+  - Added real-time Temperature Quick-Tuner badge and popover slider directly in the chat input bar.
+  - Users can view and adjust generation temperature on the fly for the current chat session.
+  - Automatically passed with all chat prompts and regeneration requests.
+- **Frontend API Service (`api.js`)**:
+  - Added `getModelSettings()`, `updateModelSettings()`, and updated `sendMessage()` to seamlessly resolve and inject active temperature.
+
+
 ## 2026-11-22 — Strict Removal of Document Upload from Normal Users ([`Sidebar.jsx`](file:///c:/Users/Lenovo/Desktop/Project/frontend/src/components/Sidebar.jsx), [`DocumentsPage.jsx`](file:///c:/Users/Lenovo/Desktop/Project/frontend/src/pages/DocumentsPage.jsx), [`ChatPage.jsx`](file:///c:/Users/Lenovo/Desktop/Project/frontend/src/pages/ChatPage.jsx), [`main.py`](file:///c:/Users/Lenovo/Desktop/Project/app/main.py))
 
 ### 1. Complete Removal of Document Upload from Member Navigation & UI

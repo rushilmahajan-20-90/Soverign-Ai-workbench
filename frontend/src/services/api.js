@@ -174,14 +174,37 @@ export const deleteConversation = (id) =>
   request(`/conversations/${id}`, { method: 'DELETE' });
 
 // ── Chat ──
-export const sendMessage = (message, conversationId = null, projectId = null) =>
-  request('/chat', {
+export const sendMessage = (message, conversationId = null, projectId = null, temperature = null) => {
+  let resolvedTemp = temperature;
+  if (resolvedTemp === null || resolvedTemp === undefined) {
+    const stored = localStorage.getItem('vertex_temperature');
+    if (stored !== null) {
+      const parsed = parseFloat(stored);
+      if (!isNaN(parsed)) resolvedTemp = parsed;
+    }
+  }
+
+  const payload = {
+    message,
+    conversation_id: conversationId || null,
+    project_id: projectId || null,
+  };
+  if (resolvedTemp !== null && resolvedTemp !== undefined && !isNaN(resolvedTemp)) {
+    payload.temperature = resolvedTemp;
+  }
+
+  return request('/chat', {
     method: 'POST',
-    body: JSON.stringify({
-      message,
-      conversation_id: conversationId || null,
-      project_id: projectId || null,
-    }),
+    body: JSON.stringify(payload),
+  });
+};
+
+// ── Model & Inference Settings ──
+export const getModelSettings = () => request('/settings/model');
+export const updateModelSettings = (data) =>
+  request('/settings/model', {
+    method: 'PATCH',
+    body: JSON.stringify(data),
   });
 
 // ── Documents ──

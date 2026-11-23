@@ -182,6 +182,9 @@ def init_db() -> None:
                         -- Project Conversations Migration
                         ALTER TABLE conversations ADD COLUMN IF NOT EXISTS project_id VARCHAR(100);
                         CREATE INDEX IF NOT EXISTS idx_conversations_project_id ON conversations(project_id);
+
+                        -- Workspace Temperature Settings Migration
+                        ALTER TABLE workspace_settings ADD COLUMN IF NOT EXISTS default_temperature NUMERIC(3, 2) NOT NULL DEFAULT 0.70;
                     """)
                 except Exception as alter_user_exc:
                     logger.warning("Could not alter users table: %s", alter_user_exc)

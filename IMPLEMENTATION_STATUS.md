@@ -42,6 +42,7 @@
 | `project_id` column migration | ✅ | Added on `conversations` table, indexed for fast filtering |
 | Project chats vs Simple chats isolation | ✅ | `exclude_projects=true` for sidebar, `project_id` for projects |
 | Document upload restricted to Admin only | ✅ | Completely removed from Member UI & backend endpoints |
+| LLM Temperature Settings & Inference Control | ✅ | DB migration, endpoints, `ask_qwen` options, frontend Settings & Chat UI |
 | Conversations filtered by `user_id` | ✅ | `chat_history.py` and `GET/POST /conversations` |
 | Chat `user_id` passthrough | ✅ | `ChatRequest.user_id` passed to conversations |
 | CORS middleware | ✅ | localhost:3000 allowed |

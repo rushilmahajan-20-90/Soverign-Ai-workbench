@@ -33,10 +33,12 @@ SUMMARY_TRIGGERS = (
 )
 
 
-def ask_qwen(message: str) -> str:
+def ask_qwen(message: str, temperature: float = 0.7) -> str:
+    temp = max(0.0, min(2.0, float(temperature)))
     response = client.chat(
         model=MODEL_NAME,
         messages=[{"role": "user", "content": message}],
+        options={"temperature": temp},
     )
     return response.message.content or ""
 
@@ -310,10 +312,13 @@ async def _handle_document_summary(message: str) -> str:
 async def ask_qwen_with_tools(
     message: str,
     history: Optional[list[dict[str, Any]]] = None,
+    temperature: float = 0.7,
 ) -> str:
     message = message.strip()
     if not message:
         return "Please enter a message."
+
+    temp = max(0.0, min(2.0, float(temperature)))
 
     # Return the OCR text directly for full-read requests instead of asking the
     # small language model to reproduce it from memory.
@@ -374,7 +379,7 @@ async def ask_qwen_with_tools(
             },
         )
         try:
-            response = client.chat(model=MODEL_NAME, messages=messages)
+            response = client.chat(model=MODEL_NAME, messages=messages, options={"temperature": temp})
             return response.message.content or ""
         except Exception:
             logger.exception("Qwen failed while answering from retrieved documents.")
@@ -383,7 +388,7 @@ async def ask_qwen_with_tools(
     calls_made = 0
     while calls_made < MAX_TOOL_CALLS:
         try:
-            response = client.chat(model=MODEL_NAME, messages=messages, tools=ollama_tools)
+            response = client.chat(model=MODEL_NAME, messages=messages, tools=ollama_tools, options={"temperature": temp})
         except Exception:
             logger.exception("Qwen chat/tool request failed.")
             return "Qwen could not process the request. Check that Ollama is running and the model is available."
@@ -419,7 +424,7 @@ async def ask_qwen_with_tools(
         ),
     })
     try:
-        response = client.chat(model=MODEL_NAME, messages=messages)
+        response = client.chat(model=MODEL_NAME, messages=messages, options={"temperature": temp})
         return response.message.content or ""
     except Exception:
         logger.exception("Qwen failed to produce a final answer.")
