@@ -209,7 +209,7 @@ def init_db() -> None:
                 try:
                     import bcrypt
                     admin_hash = bcrypt.hashpw(b"admin123", bcrypt.gensalt(12)).decode("utf-8")
-                    member_hash = bcrypt.hashpw(b"alex123", bcrypt.gensalt(12)).decode("utf-8")
+                    user0700_hash = bcrypt.hashpw(b"U@12345ok", bcrypt.gensalt(12)).decode("utf-8")
                     default_hash = bcrypt.hashpw(b"password123", bcrypt.gensalt(12)).decode("utf-8")
 
                     # Upsert default Administrator
@@ -221,14 +221,14 @@ def init_db() -> None:
                             password_hash = COALESCE(users.password_hash, EXCLUDED.password_hash);
                     """, (admin_hash,))
 
-                    # Upsert default Member Alex Kumar
+                    # Upsert default Member user0700
                     cur.execute("""
                         INSERT INTO users (username, display_name, avatar_color, role, is_active, password_hash, email)
-                        VALUES ('alex', 'Alex Kumar', '#22c55e', 'Member', TRUE, %s, 'alex@vertex.local')
+                        VALUES ('user0700', 'User 0700', '#10b981', 'Member', TRUE, %s, 'user0700@vertex.local')
                         ON CONFLICT (username) DO UPDATE SET
                             role = 'Member',
                             password_hash = COALESCE(users.password_hash, EXCLUDED.password_hash);
-                    """, (member_hash,))
+                    """, (user0700_hash,))
 
                     # Update any legacy users with no password_hash to default password
                     cur.execute("""

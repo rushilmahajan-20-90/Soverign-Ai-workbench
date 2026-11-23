@@ -1,5 +1,20 @@
 # CHANGELOG.md — Sovereign AI Workbench
 
+## 2026-11-23 — System Purge: Storage Reset, Chunks Cleaned & Accounts Simplified
+
+### 1. User Accounts Consolidation
+- Cleaned and consolidated system accounts down to strictly two accounts:
+  - **Administrator**: `username: admin`, `password: admin123`, role `Administrator`.
+  - **Member User**: `username: user0700`, `password: U@12345ok`, role `Member` (`User 0700`).
+- Purged all other legacy or test user accounts (`alex`, `d_80`, `priya`, etc.).
+- Updated seed routine in `app/db/database.py` so database initialization only seeds `admin` and `user0700` (`U@12345ok`), preventing legacy accounts from re-appearing.
+
+### 2. Complete Documents & Storage Purge
+- Emptied `documents` table in PostgreSQL database (`DELETE FROM documents;`).
+- Cleared all vector index chunks across ChromaDB collections: `company_knowledge_base`, `chat_temporary_documents`, and `pdf_documents`.
+- Removed all physical document files across `data/documents/knowledge_base/`, `data/documents/temp_chats/`, and `data/documents/generated/`.
+
+
 ## 2026-11-23 — AI Generation Temperature Settings & Full Local Inference Control
 
 ### 1. Database Schema & Persistence
