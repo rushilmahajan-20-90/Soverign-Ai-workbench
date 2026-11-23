@@ -169,31 +169,34 @@ class VectorStoreManager:
             except Exception as e:
                 logger.debug("Error querying legacy collection: %s", e)
 
-        # 2. Query Temporary Chat collection if conversation_id provided
-        if conversation_id:
+        # 2. Query Temporary Chat / Project documents collection
+        try:
             temp_kwargs = {
                 "query_embeddings": [query_embedding.tolist()],
                 "n_results": top_k,
-                "where": {"conversation_id": str(conversation_id)},
             }
-            if document_id:
+            if conversation_id and document_id:
                 temp_kwargs["where"] = {
                     "$and": [
                         {"conversation_id": str(conversation_id)},
                         {"document_id": str(document_id)},
                     ]
                 }
-            try:
-                temp_res = self.temp_collection.query(**temp_kwargs)
-                if temp_res.get("documents") and temp_res["documents"][0]:
-                    for doc, meta, dist in zip(temp_res["documents"][0], temp_res["metadatas"][0], temp_res["distances"][0]):
-                        meta_copy = dict(meta or {})
-                        meta_copy["scope"] = "chat_temporary"
-                        combined_docs.append(doc)
-                        combined_metas.append(meta_copy)
-                        combined_dists.append(dist)
-            except Exception as e:
-                logger.warning("Error querying temp collection: %s", e)
+            elif conversation_id:
+                temp_kwargs["where"] = {"conversation_id": str(conversation_id)}
+            elif document_id:
+                temp_kwargs["where"] = {"document_id": str(document_id)}
+
+            temp_res = self.temp_collection.query(**temp_kwargs)
+            if temp_res.get("documents") and temp_res["documents"][0]:
+                for doc, meta, dist in zip(temp_res["documents"][0], temp_res["metadatas"][0], temp_res["distances"][0]):
+                    meta_copy = dict(meta or {})
+                    meta_copy["scope"] = "chat_temporary"
+                    combined_docs.append(doc)
+                    combined_metas.append(meta_copy)
+                    combined_dists.append(dist)
+        except Exception as e:
+            logger.debug("Error querying temp collection: %s", e)
 
         # Sort combined results by distance (ascending)
         if combined_dists:

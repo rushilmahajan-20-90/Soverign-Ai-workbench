@@ -369,10 +369,6 @@ export default function ChatPage({
 
   const handleFileUpload = async (file) => {
     if (!file) return;
-    if (!isAdmin) {
-      addToast('Document upload is restricted to Administrators only.', 'error');
-      return;
-    }
 
     const allowed = ['.pdf', '.png', '.jpg', '.jpeg'];
     const ext = '.' + file.name.split('.').pop().toLowerCase();
@@ -474,23 +470,20 @@ export default function ChatPage({
         className="chat-container"
         style={{ position: 'relative' }}
         onDragOver={(e) => {
-          if (!isAdmin) return;
           e.preventDefault();
           setDragOverChat(true);
         }}
         onDragLeave={(e) => {
-          if (!isAdmin) return;
           if (!e.currentTarget.contains(e.relatedTarget)) setDragOverChat(false);
         }}
         onDrop={(e) => {
-          if (!isAdmin) return;
           e.preventDefault();
           setDragOverChat(false);
           const file = e.dataTransfer.files?.[0];
           if (file) handleFileUpload(file);
         }}
       >
-        {isAdmin && dragOverChat && (
+        {dragOverChat && (
           <div className="chat-drag-overlay">
             <Upload size={44} style={{ color: 'var(--accent)' }} />
             <h3 style={{ fontSize: 18, fontWeight: 600 }}>Drop to Attach to Chat</h3>
@@ -514,18 +507,14 @@ export default function ChatPage({
               <MessageSquare size={16} />
               Start a conversation
             </button>
-            {isAdmin && (
-              <button className="btn btn-secondary" onClick={handleAttach} title="Upload temporary document for this chat">
-                <Paperclip size={16} />
-                Attach to Chat
-              </button>
-            )}
+            <button className="btn btn-secondary" onClick={handleAttach} title="Upload temporary document for this chat">
+              <Paperclip size={16} />
+              Attach to Chat
+            </button>
           </div>
-          {isAdmin && (
-            <div style={{ marginTop: 12, fontSize: 11, color: 'var(--text-tertiary)', maxWidth: 440, lineHeight: 1.4 }}>
-              💡 <em>Upload a document for use in this conversation. Temporary files are removed according to the conversation lifecycle and never added to the permanent company knowledge base.</em>
-            </div>
-          )}
+          <div style={{ marginTop: 12, fontSize: 11, color: 'var(--text-tertiary)', maxWidth: 440, lineHeight: 1.4 }}>
+            💡 <em>Upload a document for use in this conversation. Temporary files are analyzed by the LLM and removed according to conversation lifecycle.</em>
+          </div>
         </div>
         <div className="chat-input-container">
           <div className="chat-input-inner">
@@ -573,17 +562,30 @@ export default function ChatPage({
                   </div>
                 </div>
               )}
-              <div className="chat-input-row">
-                {isAdmin && (
-                  <button
-                    className="chat-input-btn"
-                    onClick={handleAttach}
-                    title="📎 Attach to Chat (Upload document for this conversation only. Temporary files are removed with conversation lifecycle)"
-                  >
-                    <Paperclip size={20} />
-                  </button>
-                )}
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <div className="chat-input-row" style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%' }}>
+                <button
+                  type="button"
+                  className="chat-input-btn"
+                  onClick={handleAttach}
+                  title="📎 Attach to Chat (Upload temporary document for this session)"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 32,
+                    height: 32,
+                    padding: 0,
+                    cursor: 'pointer',
+                    color: '#94a3b8',
+                    borderRadius: 6,
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Paperclip size={16} />
+                </button>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                   <button
                     type="button"
                     className="chat-input-btn"
@@ -899,17 +901,30 @@ export default function ChatPage({
                 </div>
               </div>
             )}
-            <div className="chat-input-row">
-              {isAdmin && (
-                <button
-                  className="chat-input-btn"
-                  onClick={handleAttach}
-                  title="📎 Attach to Chat (Upload document for this conversation only. Temporary files are removed with conversation lifecycle)"
-                >
-                  <Paperclip size={20} />
-                </button>
-              )}
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <div className="chat-input-row" style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%' }}>
+              <button
+                type="button"
+                className="chat-input-btn"
+                onClick={handleAttach}
+                title="📎 Attach to Chat (Upload temporary document for this session)"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 32,
+                  height: 32,
+                  padding: 0,
+                  cursor: 'pointer',
+                  color: '#94a3b8',
+                  borderRadius: 6,
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  flexShrink: 0,
+                }}
+              >
+                <Paperclip size={16} />
+              </button>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                 <button
                   type="button"
                   className="chat-input-btn"

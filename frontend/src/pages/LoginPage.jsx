@@ -256,7 +256,7 @@ export default function LoginPage() {
 
             <button
               type="button"
-              onClick={() => handleQuickFill('alex', 'alex123')}
+              onClick={() => handleQuickFill('user0700', 'U@12345')}
               style={{
                 background: '#070709',
                 border: '1px solid rgba(34, 197, 94, 0.25)',
@@ -272,7 +272,7 @@ export default function LoginPage() {
                 <span>Member</span>
               </div>
               <div style={{ fontSize: 11, color: 'rgba(255, 255, 255, 0.4)', marginTop: 2 }}>
-                alex / alex123
+                user0700 / U@12345
               </div>
             </button>
           </div>

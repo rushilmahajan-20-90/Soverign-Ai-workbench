@@ -209,7 +209,7 @@ def init_db() -> None:
                 try:
                     import bcrypt
                     admin_hash = bcrypt.hashpw(b"admin123", bcrypt.gensalt(12)).decode("utf-8")
-                    user0700_hash = bcrypt.hashpw(b"U@12345ok", bcrypt.gensalt(12)).decode("utf-8")
+                    user0700_hash = bcrypt.hashpw(b"U@12345", bcrypt.gensalt(12)).decode("utf-8")
                     default_hash = bcrypt.hashpw(b"password123", bcrypt.gensalt(12)).decode("utf-8")
 
                     # Upsert default Administrator

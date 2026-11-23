@@ -1,5 +1,26 @@
 # CHANGELOG.md — Sovereign AI Workbench
 
+## 2026-11-23 — User Authentication Fix, Temporary Document Upload in Chat & Project Workspace
+
+### 1. Authentication & Credentials Update
+- Updated password for `user0700` (`Member`) to `U@12345` in PostgreSQL database and updated `app/db/database.py` seed.
+- Updated `LoginPage.jsx` demo login card: replaced `alex / alex123` with `user0700 / U@12345`.
+- Added alias support in `POST /auth/login` so typing `user@0700` or `user0700@vertex.local` seamlessly resolves to `user0700`.
+
+### 2. Restored Temporary Document Upload in Chat Window
+- Re-enabled the Paperclip (`📎 Attach to Chat`) button for all users (`Member` and `Administrator`) in `ChatPage.jsx`.
+- Re-enabled drag-and-drop document upload overlay for all users.
+- Updated `POST /chat/upload` in `app/main.py` so any authenticated user can upload temporary documents for their active conversation.
+- Refined `.chat-input-row` layout so the Paperclip button, Temperature quick-tuner, textarea, and Send button align cleanly with no cursor overlap.
+
+### 3. Dedicated Temporary Document Upload in Project Workspace
+- Added **Project Documents (Temporary / Session)** card in `WorkspacePage.jsx` within the active project view.
+- Added "+ Upload Doc" button and file input supporting PDF, PNG, JPG, JPEG.
+- Added inline `Paperclip` attachment button in the In-Project AI Assistant chat input bar.
+- Uploaded project documents are processed with OCR, chunked, and embedded into temporary storage associated with the project and conversation.
+- Updated `search_combined()` in `app/rag/vector_store.py` so the LLM can always retrieve and cite chunks from both permanent company knowledge and temporary project documents.
+
+
 ## 2026-11-23 — System Purge: Storage Reset, Chunks Cleaned & Accounts Simplified
 
 ### 1. User Accounts Consolidation

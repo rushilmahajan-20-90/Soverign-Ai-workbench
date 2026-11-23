@@ -273,6 +273,8 @@ class BulkDeleteRequest(BaseModel):
 @app.post("/auth/login")
 def auth_login(request: LoginRequest, raw_req: Request):
     username = request.username.strip().lower()
+    if username in {"user@0700", "user0700@vertex.local"}:
+        username = "user0700"
     user = get_user_by_username(username)
 
     if not user:
@@ -1327,18 +1329,13 @@ async def upload_chat_document(
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Temporary chat document upload (Administrator Only):
-    - Scoped strictly to the specified conversation_id
+    Temporary chat / project document upload:
+    - Scoped strictly to the specified conversation_id or project_id
     - Stored in temporary session folder: data/documents/temp_chats/{conversation_id}/
     - Indexed in temporary vector store: chat_temporary_documents
     - Cleaned up automatically when conversation is deleted or session ends
     - Never promoted to company knowledge base
     """
-    if current_user.get("role") != "Administrator":
-        raise HTTPException(
-            status_code=403,
-            detail="Document upload is restricted to Administrators only.",
-        )
     filename = os.path.basename(file.filename or "")
     if not filename or filename in {".", ".."}:
         raise HTTPException(status_code=400, detail="Invalid filename.")

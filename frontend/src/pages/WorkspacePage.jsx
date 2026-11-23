@@ -33,6 +33,8 @@ import {
   Briefcase,
   Cpu,
   Lightbulb,
+  Paperclip,
+  Upload,
 } from 'lucide-react';
 
 const PROJECT_CATEGORIES = [
@@ -289,6 +291,8 @@ export default function WorkspacePage() {
   const [sending, setSending] = useState(false);
   const [loadingConv, setLoadingConv] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
+  const [uploadingProjectDoc, setUploadingProjectDoc] = useState(false);
+  const projectFileInputRef = useRef(null);
 
   // Quick inline task in active project
   const [newTaskText, setNewTaskText] = useState('');
@@ -469,6 +473,65 @@ export default function WorkspacePage() {
     } finally {
       setSending(false);
     }
+  };
+
+  // Upload temporary document to project
+  const handleProjectFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeProject) return;
+    e.target.value = '';
+
+    const allowed = ['.pdf', '.png', '.jpg', '.jpeg'];
+    const ext = '.' + file.name.split('.').pop().toLowerCase();
+    if (!allowed.includes(ext)) {
+      addToast('Supported formats: PDF, PNG, JPG, JPEG', 'error');
+      return;
+    }
+
+    setUploadingProjectDoc(true);
+    addToast(`Processing & indexing temporary document ${file.name}...`, 'info');
+
+    try {
+      const res = await api.uploadChatDocument(file, activeConvId, activeProject.id);
+      const newDoc = {
+        id: res.document_id || `doc-${Date.now()}`,
+        filename: file.name,
+        size: file.size,
+        chunks: res.chunks || 1,
+        uploaded_at: new Date().toISOString(),
+      };
+
+      const updated = projects.map((p) => {
+        if (p.id === activeProject.id) {
+          const existing = p.documents || [];
+          return { ...p, documents: [newDoc, ...existing] };
+        }
+        return p;
+      });
+
+      saveProjects(updated);
+      addToast(`Attached "${file.name}" to ${activeProject.title}. LLM can now see it.`, 'success');
+    } catch (err) {
+      addToast(`Failed to attach document: ${err.message}`, 'error');
+    } finally {
+      setUploadingProjectDoc(false);
+    }
+  };
+
+  // Remove temporary document from project
+  const handleRemoveProjectDoc = (docId, docName) => {
+    if (!activeProject) return;
+    const updated = projects.map((p) => {
+      if (p.id === activeProject.id) {
+        return {
+          ...p,
+          documents: (p.documents || []).filter((d) => d.id !== docId),
+        };
+      }
+      return p;
+    });
+    saveProjects(updated);
+    addToast(`Removed "${docName}" from project`, 'info');
   };
 
   const handleNewProjectChat = () => {
@@ -1056,6 +1119,144 @@ export default function WorkspacePage() {
               </div>
             </div>
 
+            {/* Project Temporary Documents Card */}
+            <div
+              style={{
+                background: '#040405',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: 'var(--radius-lg)',
+                padding: 14,
+                marginBottom: 16,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 10,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Paperclip size={14} style={{ color: '#38bdf8' }} />
+                  <span
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
+                      color: '#ffffff',
+                    }}
+                  >
+                    Project Documents ({activeProject.documents?.length || 0})
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 9,
+                      fontWeight: 600,
+                      padding: '2px 5px',
+                      borderRadius: 3,
+                      background: 'rgba(56, 189, 248, 0.15)',
+                      color: '#38bdf8',
+                      border: '1px solid rgba(56, 189, 248, 0.3)',
+                    }}
+                  >
+                    Temporary
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => projectFileInputRef.current?.click()}
+                  disabled={uploadingProjectDoc}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    padding: '4px 8px',
+                    background: 'rgba(56, 189, 248, 0.15)',
+                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                    color: '#38bdf8',
+                    borderRadius: 4,
+                    cursor: uploadingProjectDoc ? 'not-allowed' : 'pointer',
+                  }}
+                  title="Upload temporary document for this project (LLM can see and analyze it)"
+                >
+                  <Plus size={12} />
+                  <span>{uploadingProjectDoc ? 'Indexing...' : 'Upload Doc'}</span>
+                </button>
+              </div>
+
+              {(!activeProject.documents || activeProject.documents.length === 0) ? (
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: '16px 10px',
+                    color: 'var(--text-tertiary)',
+                    fontSize: 11,
+                    background: '#070709',
+                    borderRadius: 6,
+                    border: '1px dashed rgba(255, 255, 255, 0.1)',
+                  }}
+                >
+                  <Paperclip size={18} style={{ margin: '0 auto 6px', opacity: 0.4, color: '#38bdf8' }} />
+                  <p style={{ margin: '0 0 2px', color: '#cbd5e1' }}>No documents attached yet.</p>
+                  <p style={{ margin: 0, fontSize: 10, color: 'var(--text-tertiary)' }}>
+                    Upload a PDF or image so the LLM assistant can see and cite it.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
+                  {activeProject.documents.map((doc) => (
+                    <div
+                      key={doc.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '6px 10px',
+                        background: '#08080c',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        borderRadius: 6,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
+                        <FileText size={14} style={{ color: '#818cf8', flexShrink: 0 }} />
+                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                          <span style={{ fontSize: 12, color: '#f1f5f9', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {doc.filename}
+                          </span>
+                          <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
+                            {doc.size ? `${(doc.size / 1024).toFixed(0)} KB • ` : ''}{doc.chunks || 1} chunks • Ready for LLM
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveProjectDoc(doc.id, doc.filename)}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--text-tertiary)',
+                          cursor: 'pointer',
+                          padding: 4,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                        title="Remove document from project"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Project Conversations History Card */}
             <div
               style={{
@@ -1576,6 +1777,27 @@ export default function WorkspacePage() {
                   padding: '6px 12px',
                 }}
               >
+                <button
+                  type="button"
+                  onClick={() => projectFileInputRef.current?.click()}
+                  disabled={uploadingProjectDoc}
+                  title="📎 Attach temporary document to this project (AI can read and analyze)"
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    color: '#94a3b8',
+                    borderRadius: 6,
+                    width: 30,
+                    height: 30,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: uploadingProjectDoc ? 'not-allowed' : 'pointer',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Paperclip size={14} />
+                </button>
                 <textarea
                   rows={1}
                   value={inputMessage}
@@ -2525,6 +2747,14 @@ export default function WorkspacePage() {
           </div>
         </div>
       )}
+      {/* Hidden File Input for Project Documents */}
+      <input
+        ref={projectFileInputRef}
+        type="file"
+        accept=".pdf,.png,.jpg,.jpeg"
+        style={{ display: 'none' }}
+        onChange={handleProjectFileUpload}
+      />
     </div>
   );
 }
